@@ -140,14 +140,26 @@ namespace terminal
         {
             while (isConnected)
             {
+                string message;
                 try
                 {
-                    string message = serialPort.ReadLine();
-                    Application.Current.Dispatcher.Invoke(() =>texty.Text = message);
+                    message = serialPort.ReadLine();
+                    
                 }
-                catch (SystemException e)
+                catch (TimeoutException e)
                 {
-                    Application.Current.Dispatcher.Invoke(() => texty.Text = "Error: " + e.Message);
+                    message = e.Message;
+                }
+                try
+                {
+                    //there is a problem because when closing connection, main thread waits for Read thread to finish, but then thread waits to execute line below. Soooo, this is impossible
+                    // Figure out new way to send data to main thread
+                    // Maybe something with lock
+                    Application.Current.Dispatcher.Invoke(() => texty.Text = message);
+                }
+                catch (Exception e)
+                {
+                    data = e.Message;
                 }
                 
                 
@@ -155,7 +167,7 @@ namespace terminal
         }
 
         //TODO: Connecting to the Serial device
-        //TODO: Refresh available Serial devices automatically
+        //TODO: Refresh available Serial devices automatically (done)
         //TODO: Sending and receiving data to/from device
         //TODO: Redesign style and format of changing settings
     }
