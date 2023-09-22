@@ -15,6 +15,8 @@
 #define PROBE_NUMBER 5
 #define SCROLL_TIME 3000
 
+const String version = "1.0";
+
 OneWire oneWire(ONEWIRE_PIN);
 DallasTemperature sensors(&oneWire);
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -177,6 +179,11 @@ void serialEvent()
 			if (read == "edit probe")
 			{
 				editProbe();
+			}
+			else if (read == "version")
+			{
+				Serial.print("Firmware version: ");
+				Serial.println(version);
 			}
 			else
 			{
