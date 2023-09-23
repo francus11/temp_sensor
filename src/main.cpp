@@ -13,6 +13,7 @@
 #define SDA 18
 #define SDL 19
 #define PROBE_NUMBER 5
+#define MAX_PROBE_NUMBER	16
 #define SCROLL_TIME 3000
 
 const String version = "1.0";
@@ -21,16 +22,21 @@ OneWire oneWire(ONEWIRE_PIN);
 DallasTemperature sensors(&oneWire);
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-DeviceAddress addresses[PROBE_NUMBER] = {
-	{0x28, 0x30, 0x14, 0x0C, 0x0A, 0x00, 0x00, 0xE8},
-	{0x28, 0x1F, 0xD6, 0x0C, 0x0A, 0x00, 0x00, 0xDB},
-	{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-	{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-	{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}};
+DeviceAddress *addresses;
+byte numberOfProbes;
+
+/*
+	EEPROM memory allocation
+	0-127: probes addresses
+	128: number of probes
+*/
+
 
 void editProbe();
-void updateAddresses();
-
+void editProbesNumber();
+void updateAddresses(byte numberOfProbes);
+void getProbesNumber();
+void setProbesNumber(byte numberOfProbes);
 void serialPrintf(const char *fmt, ...);
 /**
  * --------------------------------------------------------------
@@ -143,7 +149,7 @@ void editProbe()
 		while (Serial.available() == 0)
 			;
 		int number = Serial.readString().toInt();
-		if (number <= PROBE_NUMBER && number >= 1)
+		if (number <= numberOfProbes && number >= 1)
 		{
 			sensors.getAddress(addresses[number - 1], 0);
 			EEPROM.put((number - 1) * sizeof(DeviceAddress), addresses[number - 1]);
@@ -154,6 +160,32 @@ void editProbe()
 		{
 			Serial.println("Incorrect argument. Exiting \"edit probe\" mode");
 			break;
+		}
+	}
+}
+
+void editProbesNumber()
+{
+	Serial.println("Changing number of available probes");
+	Serial.print("Current number: ");
+	Serial.println(numberOfProbes);
+
+	while (true)
+	{
+		Serial.println("Type new number of probes");
+		while (Serial.available() == 0)
+				;
+		int number = Serial.readString().toInt();
+		if (number >= 1 && number <= MAX_PROBE_NUMBER)
+		{
+			setProbesNumber(number);
+			Serial.println("Assigned succesfully");
+			getProbesNumber();
+			break;
+		}
+		else
+		{
+			Serial.println("Wrong argument. Try again");
 		}
 	}
 }
@@ -185,6 +217,10 @@ void serialEvent()
 				Serial.print("Firmware version: ");
 				Serial.println(version);
 			}
+			else if (read == "number of probes")
+			{
+				editProbesNumber();
+			}
 			else
 			{
 				Serial.println("Unknown command. Closing debug mode");
@@ -193,12 +229,29 @@ void serialEvent()
 	}
 }
 
-void updateAddresses()
+void updateAddresses(byte numberOfProbes)
 {
-	for (int i = 0; i < PROBE_NUMBER; i++)
+	delete addresses;
+	addresses = new DeviceAddress[numberOfProbes];
+	for (int i = 0; i < numberOfProbes; i++)
 	{
 		EEPROM.get(i * sizeof(DeviceAddress), addresses[i]);
 	}
+}
+
+void getProbesNumber()
+{
+	EEPROM.get(128, numberOfProbes);
+
+	if (numberOfProbes == 0 || numberOfProbes > MAX_PROBE_NUMBER)
+	{
+		numberOfProbes = 1;
+	}
+}
+
+void setProbesNumber(byte numberOfProbes)
+{
+	EEPROM.put(128, numberOfProbes);
 }
 
 void setup()
@@ -213,7 +266,8 @@ void setup()
 	lcd.print("  Temperature   ");
 	lcd.setCursor(0, 1);
 	lcd.print("    Sensor   ");
-	updateAddresses();
+	getProbesNumber();
+	updateAddresses(numberOfProbes);
 	delay(3000);
 	lcd.clear();
 }
@@ -236,7 +290,7 @@ void loop()
 	lcd.print("T");
 	lcd.print(count + 1);
 	lcd.print(":");
-	if (count < PROBE_NUMBER)
+	if (count < numberOfProbes)
 	{
 		temp = sensors.getTempC(addresses[count]);
 		if (temp == -127.0)
@@ -257,7 +311,7 @@ void loop()
 	lcd.print("T");
 	lcd.print(count + 2);
 	lcd.print(":");
-	if (count + 1 < PROBE_NUMBER)
+	if (count + 1 < numberOfProbes)
 	{
 		temp = sensors.getTempC(addresses[count + 1]);
 		if (temp == -127.0)
@@ -278,7 +332,7 @@ void loop()
 	lcd.print("T");
 	lcd.print(count + 3);
 	lcd.print(":");
-	if (count + 2 < PROBE_NUMBER)
+	if (count + 2 < numberOfProbes)
 	{
 		temp = sensors.getTempC(addresses[count + 2]);
 		if (temp == -127.0)
@@ -299,7 +353,7 @@ void loop()
 	lcd.print("T");
 	lcd.print(count + 4);
 	lcd.print(":");
-	if (count + 3 < PROBE_NUMBER)
+	if (count + 3 < numberOfProbes)
 	{
 		temp = sensors.getTempC(addresses[count + 3]);
 		if (temp == -127.0)
@@ -321,9 +375,13 @@ void loop()
 	{
 		moveTime = millis() + SCROLL_TIME;
 
-		if (PROBE_NUMBER % 4 != 0)
+		if (numberOfProbes % 4 != 0)
 		{
-			count = (count + 4) % (4 * ((PROBE_NUMBER / 4) + 1));
+			count = (count + 4) % (4 * ((numberOfProbes / 4) + 1));
+		}
+		else
+		{
+			count = (count + 4) % (numberOfProbes);
 		}
 	}
 
